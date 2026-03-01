@@ -1,0 +1,17 @@
+[project]
+name        = "voronoi-planner"
+version     = "0.1.0"
+description = "Lightweight Voronoi-based navigation-graph planner (C++17 engine + Python front-end)"
+requires-python = ">=3.10"
+
+dependencies = [
+    "numpy>=1.24",
+    "pillow>=10.0",
+    "matplotlib>=3.7",
+    "pybind11>=2.11",
+]
+
+[tool.uv]
+# This is a script project, not an installable package.
+# uv will only install the listed [project.dependencies] into the venv.
+package = false

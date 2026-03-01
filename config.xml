@@ -1,0 +1,46 @@
+<config>
+    <!-- Input occupancy-map image (jpg / png / bmp). White pixels = free, dark pixels = obstacle. -->
+    <input_image>input/map.jpg</input_image>
+
+    <!-- Prefix used when saving the graph as JSON (vertices + edges). -->
+    <output_graph_prefix>output/nav_graph</output_graph_prefix>
+
+    <!-- Path for the final annotated output image. -->
+    <output_image>output/nav_output.png</output_image>
+
+    <!-- Physical distance that one pixel represents, in metres. -->
+    <map_scale>0.1</map_scale>
+
+    <!-- Robot inscribed radius in meteres used to filter the Voronoi skeleton
+         (only skeleton cells with EDT >= robot_radius are kept). -->
+    <robot_radius>0.75</robot_radius>
+
+    <!-- Maximum distance between nodes for them to be considered the same, meters -->
+    <node_solution>0.5</node_solution>
+
+    <!-- Traversability graph algorithm:
+           voronoi  – Voronoi-corridor skeleton (default)
+           uniform  – uniform grid sampling + pairwise line-of-sight edges -->
+    <traversability_sampling_algo>uniform</traversability_sampling_algo>
+
+    <!-- [uniform mode] Spacing between sampled grid points, in metres.
+         Smaller values yield denser graphs. -->
+    <uniform_grid_resolution>0.5</uniform_grid_resolution>
+
+    <!-- [uniform mode] Maximum distance in metres between two vertices for
+         which a line-of-sight (visibility) check is even attempted.
+         Pairs further apart than this are never connected. -->
+    <visibility_range>30.0</visibility_range>
+
+    <!-- Greyscale threshold [0-255]: pixels darker than this value are treated
+         as obstacles. -->
+    <obstacle_threshold>128</obstacle_threshold>
+
+    <!-- Overlay options for the output visualisation. -->
+    <overlay_graph>true</overlay_graph>      <!-- draw vertices and edges -->
+    <overlay_buffer>true</overlay_buffer>    <!-- draw EDT heat-map / robot clearance -->
+    <overlay_skeleton>true</overlay_skeleton> <!-- draw the raw Voronoi skeleton -->
+
+    <!-- Matplotlib figure DPI for the saved output image. -->
+    <output_dpi>150</output_dpi>
+</config>
