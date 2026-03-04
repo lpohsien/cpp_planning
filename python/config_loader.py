@@ -26,7 +26,7 @@ class PlannerConfig:
     obstacle_threshold: int    # greyscale cutoff [0-255]; darker ⟹ obstacle
 
     # ── Robot / planner parameters ────────────────────────────────────────────
-    robot_radius: float   # minimum clearance in **pixels** (converted from metres)
+    robot_radius: float   # minimum clearance in **metres**
     node_solution: float  # maximum distance in **metres** under which two graph
                           # nodes are considered identical and merged into one
 
@@ -51,15 +51,9 @@ def load_config(xml_path: str | Path = "config.xml") -> PlannerConfig:
 
     Unit handling
     -------------
-    ``robot_radius`` is specified in **metres** and is converted to pixels using
-    ``map_scale`` (metres per pixel).
-
-    ``node_solution`` is stored as-is in **metres** — it represents the maximum
-    distance under which two graph nodes are considered the same and merged.
-    Conversion to pixels happens at the C++ engine call site.
-
-    In practice: ``robot_radius=1.5`` with ``map_scale=0.05`` →
-    1.5 / 0.05 = **30 px** minimum clearance.
+    Both ``robot_radius`` and ``node_solution`` are stored as-is in **metres**.
+    Conversion to pixels happens at the C++ engine call site in
+    ``image_parser.py``.
     """
     tree = ET.parse(xml_path)
     root = tree.getroot()
@@ -87,7 +81,7 @@ def load_config(xml_path: str | Path = "config.xml") -> PlannerConfig:
             return raw / map_scale
         return raw  # already in pixels
 
-    raw_robot_radius  = float(_get("robot_radius", "10.0"))
+    raw_robot_radius  = float(_get("robot_radius", "0.5"))
     # node_solution is always in metres; kept as-is, no pixel conversion here.
     raw_node_solution = float(_get_first(
         "node_solution", "node_separation_distance", default="1.0"))
@@ -104,7 +98,7 @@ def load_config(xml_path: str | Path = "config.xml") -> PlannerConfig:
         output_image      = _get("output_image", "nav_output.png"),
         map_scale         = map_scale,
         obstacle_threshold= int(_get("obstacle_threshold", "128")),
-        robot_radius      = _metres_to_px(raw_robot_radius),
+        robot_radius      = raw_robot_radius,   # stored in metres
         node_solution     = raw_node_solution,   # stored in metres
         traversability_sampling_algo = algo,
         uniform_grid_resolution = float(_get("uniform_grid_resolution", "2.0")),

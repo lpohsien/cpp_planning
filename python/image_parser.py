@@ -90,7 +90,8 @@ def run_voronoi_engine(
     scale = cfg.map_scale if cfg.map_scale > 0 else 1.0
     result = map_engine.compute_graph(
         occ_c,
-        float(cfg.robot_radius),
+        # robot_radius: metres → pixels
+        float(cfg.robot_radius / scale),
         # node_solution is in metres; convert to pixels for the C++ engine
         float(cfg.node_solution / scale),
         cfg.traversability_sampling_algo,

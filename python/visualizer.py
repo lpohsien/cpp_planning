@@ -181,7 +181,7 @@ def render(
     ax.set_title(
         f"Voronoi Nav Graph  |  {W}×{H} px  |  "
         f"scale {cfg.map_scale:.4f} m/px  |  "
-        f"robot_r={cfg.robot_radius:.1f} px  |  "
+        f"robot_r={cfg.robot_radius:.1f} m  |  "
         f"{len(vertices)} nodes  {len(edges)} edges",
         fontsize=7, pad=4, color="white",
     )
