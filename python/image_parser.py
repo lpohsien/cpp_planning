@@ -2,7 +2,7 @@
 image_parser.py
 ---------------
 Loads an occupancy-map image with PIL, converts it to a binary uint8
-numpy array, and delegates path-planning to the C++ Voronoi engine.
+numpy array, and delegates path-planning to the C++ map engine.
 
 Convention
 ----------
@@ -57,9 +57,9 @@ def run_voronoi_engine(
     cfg      : PlannerConfig,
 ) -> dict[str, Any]:
     """
-    Pass the occupancy grid to the C++ Voronoi engine and return its output.
+    Pass the occupancy grid to the C++ map engine and return its output.
 
-    The engine is imported as a compiled pybind11 extension (`voronoi_engine`).
+    The engine is imported as a compiled pybind11 extension (`map_engine`).
     The extension must have been built (via `build.sh`) before calling this
     function.
 
@@ -77,10 +77,10 @@ def run_voronoi_engine(
         "dist_map"  : np.ndarray float32 (H, W) EDT in pixels
     """
     try:
-        import voronoi_engine  # compiled .so, placed next to this script
+        import map_engine  # compiled .so, placed next to this script
     except ImportError as exc:
         raise ImportError(
-            "Could not import the 'voronoi_engine' C++ extension.\n"
+            "Could not import the 'map_engine' C++ extension.\n"
             "Run  ./build.sh  first to compile it."
         ) from exc
 
@@ -88,7 +88,7 @@ def run_voronoi_engine(
     occ_c = np.ascontiguousarray(occ_grid, dtype=np.uint8)
 
     scale = cfg.map_scale if cfg.map_scale > 0 else 1.0
-    result = voronoi_engine.compute_graph(
+    result = map_engine.compute_graph(
         occ_c,
         float(cfg.robot_radius),
         # node_solution is in metres; convert to pixels for the C++ engine

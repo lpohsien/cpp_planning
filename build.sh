@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# build.sh – compile the voronoi_engine pybind11 extension
+# build.sh – compile the map_engine pybind11 extension
 # ============================================================================
 # Requirements
 #   • uv        – Python environment/package manager
@@ -19,7 +19,7 @@ cd "$SCRIPT_DIR"
 # ── Clean ────────────────────────────────────────────────────────────────────
 if [[ "${1:-}" == "--clean" ]]; then
     echo "[build] Removing compiled extension files …"
-    rm -f voronoi_engine*.so voronoi_engine*.pyd
+    rm -f map_engine*.so map_engine*.pyd
     echo "[build] Done."
     exit 0
 fi
@@ -45,7 +45,18 @@ PYTHON="uv run python"
 
 PYTHON_INCLUDE=$($PYTHON -c "import sysconfig; print(sysconfig.get_path('include'))")
 PYBIND11_INCLUDE=$($PYTHON -c "import pybind11; print(pybind11.get_include())")
-EIGEN_INCLUDE="$SCRIPT_DIR/eigen"
+# Prefer a bundled eigen/ directory; fall back to the system installation.
+if [[ -d "$SCRIPT_DIR/eigen/Eigen" ]]; then
+    EIGEN_INCLUDE="$SCRIPT_DIR/eigen"
+elif [[ -d "/usr/include/eigen3" ]]; then
+    EIGEN_INCLUDE="/usr/include/eigen3"
+elif [[ -d "/usr/local/include/eigen3" ]]; then
+    EIGEN_INCLUDE="/usr/local/include/eigen3"
+else
+    echo "[build] ERROR: Eigen3 headers not found. Install libeigen3-dev or" >&2
+    echo "               place headers in ./eigen/." >&2
+    exit 1
+fi
 EXT_SUFFIX=$($PYTHON -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
 
 echo "[build] Python include : $PYTHON_INCLUDE"
@@ -53,7 +64,7 @@ echo "[build] pybind11 include: $PYBIND11_INCLUDE"
 echo "[build] Eigen include  : $EIGEN_INCLUDE"
 echo "[build] Extension suffix: $EXT_SUFFIX"
 
-OUTPUT="$SCRIPT_DIR/voronoi_engine${EXT_SUFFIX}"
+OUTPUT="$SCRIPT_DIR/map_engine${EXT_SUFFIX}"
 
 # ── 4. Platform-specific linker flags ────────────────────────────────────────
 OS="$(uname -s)"
@@ -89,7 +100,7 @@ $CXX \
     -I"$PYTHON_INCLUDE" \
     -I"$PYBIND11_INCLUDE" \
     -I"$EIGEN_INCLUDE" \
-    src/voronoi_engine.cpp \
+    src/map_engine.cpp \
     $LDFLAGS \
     -o "$OUTPUT"
 
@@ -100,16 +111,22 @@ echo "[build] Smoke-testing import …"
 $PYTHON -c "
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path('$OUTPUT').parent))
-import voronoi_engine, numpy as np
+import map_engine, numpy as np
 # 20×20 grid: border = obstacle, interior = free
 occ = np.zeros((20, 20), dtype=np.uint8)
 occ[0, :] = occ[-1, :] = occ[:, 0] = occ[:, -1] = 255
-# Test voronoi mode
-r = voronoi_engine.compute_graph(occ, 1.0, 0.0, 'voronoi')
+# Test voronoi mode (dynamic brushfire)
+r = map_engine.compute_graph(occ, 1.0, 0.0, 'voronoi')
 print(f'  voronoi: vertices={len(r[\"vertices\"])}  edges={len(r[\"edges\"])}')
 # Test uniform mode
-r = voronoi_engine.compute_graph(occ, 1.0, 0.0, 'uniform', 3.0, 50.0)
+r = map_engine.compute_graph(occ, 1.0, 0.0, 'uniform', 3.0, 50.0)
 print(f'  uniform: vertices={len(r[\"vertices\"])}  edges={len(r[\"edges\"])}')
+# Test VoronoiEngine dynamic updates
+eng = map_engine.VoronoiEngine(occ, 1.0)
+eng.add_obstacles([(5, 5), (5, 6)])
+eng.remove_obstacles([(5, 5)])
+gr = eng.get_graph(0.0)
+print(f'  dynamic: vertices={len(gr[\"vertices\"])}  edges={len(gr[\"edges\"])}')
 print('  Import OK.')
 "
 

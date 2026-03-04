@@ -14,7 +14,7 @@ Pipeline
 --------
   1. Load config.xml
   2. Load and binarise the occupancy-map image  (image_parser)
-  3. Run the C++ Voronoi engine                 (image_parser → voronoi_engine.so)
+  3. Run the C++ map engine                     (image_parser → map_engine.so)
   4. Save the navigation graph to two CSV files (main)
        • <prefix>_vertices.csv  —  id, x_px, y_px, x_m, y_m
        • <prefix>_edges.csv     —  from_id, to_id
