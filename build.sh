@@ -57,11 +57,21 @@ else
     echo "               place headers in ./eigen/." >&2
     exit 1
 fi
+
+CLIPPER2_INCLUDE="$SCRIPT_DIR/third_party/Clipper2/CPP/Clipper2Lib/include"
+CLIPPER2_SRC_DIR="$SCRIPT_DIR/third_party/Clipper2/CPP/Clipper2Lib/src"
+if [[ ! -d "$CLIPPER2_INCLUDE" || ! -d "$CLIPPER2_SRC_DIR" ]]; then
+    echo "[build] ERROR: Clipper2 not found under ./third_party/Clipper2." >&2
+    echo "               Run: git submodule update --init --recursive" >&2
+    exit 1
+fi
+
 EXT_SUFFIX=$($PYTHON -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
 
 echo "[build] Python include : $PYTHON_INCLUDE"
 echo "[build] pybind11 include: $PYBIND11_INCLUDE"
 echo "[build] Eigen include  : $EIGEN_INCLUDE"
+echo "[build] Clipper2 include: $CLIPPER2_INCLUDE"
 echo "[build] Extension suffix: $EXT_SUFFIX"
 
 OUTPUT="$SCRIPT_DIR/map_engine${EXT_SUFFIX}"
@@ -100,7 +110,13 @@ $CXX \
     -I"$PYTHON_INCLUDE" \
     -I"$PYBIND11_INCLUDE" \
     -I"$EIGEN_INCLUDE" \
+    -I"$CLIPPER2_INCLUDE" \
     src/map_engine.cpp \
+    src/VoronoiGraphBuilder.cpp \
+    "$CLIPPER2_SRC_DIR/clipper.engine.cpp" \
+    "$CLIPPER2_SRC_DIR/clipper.offset.cpp" \
+    "$CLIPPER2_SRC_DIR/clipper.rectclip.cpp" \
+    "$CLIPPER2_SRC_DIR/clipper.triangulation.cpp" \
     $LDFLAGS \
     -o "$OUTPUT"
 
