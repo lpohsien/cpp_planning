@@ -92,6 +92,13 @@ def write_graph_edges_csv(path: str | Path, edges: list[list[int]]) -> None:
         writer.writerows(edges)
 
 
+def write_delaunay_triangles_csv(path: str | Path, triangles: list[list[float]]) -> None:
+    with _as_path(path).open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["v0_x", "v0_y", "v1_x", "v1_y", "v2_x", "v2_y"])
+        writer.writerows(triangles)
+
+
 def read_graph_nodes_csv(path: str | Path) -> list[list[float]]:
     points: list[list[float]] = []
     with _as_path(path).open("r", newline="") as f:
@@ -118,6 +125,28 @@ def read_graph_edges_csv(path: str | Path) -> list[list[int]]:
     return edges
 
 
+def read_delaunay_triangles_csv(path: str | Path) -> list[list[float]]:
+    triangles: list[list[float]] = []
+    with _as_path(path).open("r", newline="") as f:
+        reader = csv.DictReader(f)
+        required = {"v0_x", "v0_y", "v1_x", "v1_y", "v2_x", "v2_y"}
+        if reader.fieldnames is None or not required.issubset(set(reader.fieldnames)):
+            raise ValueError(f"{path} must include headers: v0_x, v0_y, v1_x, v1_y, v2_x, v2_y")
+
+        for row in reader:
+            triangles.append(
+                [
+                    float(row["v0_x"]),
+                    float(row["v0_y"]),
+                    float(row["v1_x"]),
+                    float(row["v1_y"]),
+                    float(row["v2_x"]),
+                    float(row["v2_y"]),
+                ]
+            )
+    return triangles
+
+
 def _plot_polygon(ax: Axes, polygon: list[list[float]], color: str, label: str, alpha: float) -> None:
     if not polygon:
         return
@@ -132,6 +161,7 @@ def plot_scene(
     no_go_zones: list[list[list[float]]],
     vertices: list[list[float]],
     edges: list[list[int]],
+    delaunay_triangles: list[list[float]] | None = None,
     points_of_interest: list[list[float]] | None = None,
     title: str = "Voronoi Graph",
     output_image_path: str | Path | None = None,
@@ -144,6 +174,16 @@ def plot_scene(
 
     for i, poly in enumerate(no_go_zones):
         _plot_polygon(ax, poly, color="#e63946", label="No-go zone" if i == 0 else "", alpha=0.45)
+
+    if delaunay_triangles:
+        triangle_label_drawn = False
+        for tri in delaunay_triangles:
+            x0, y0, x1, y1, x2, y2 = tri
+            xs = [x0, x1, x2, x0]
+            ys = [y0, y1, y2, y0]
+            label = "Delaunay triangles" if not triangle_label_drawn else ""
+            ax.plot(xs, ys, color="#6c757d", linewidth=0.8, alpha=0.45, zorder=2, label=label)
+            triangle_label_drawn = True
 
     if vertices:
         vx = [v[0] for v in vertices]
@@ -169,7 +209,14 @@ def plot_scene(
     handles, labels = ax.get_legend_handles_labels()
     compact = [(h, label) for h, label in zip(handles, labels) if label]
     if compact:
-        ax.legend([c[0] for c in compact], [c[1] for c in compact], loc="upper right")
+        ax.legend(
+            [c[0] for c in compact],
+            [c[1] for c in compact],
+            loc="center left",
+            bbox_to_anchor=(1.02, 0.5),
+            borderaxespad=0.0,
+        )
+        fig.subplots_adjust(right=0.78)
 
     if output_image_path is not None:
         img_path = _as_path(output_image_path)

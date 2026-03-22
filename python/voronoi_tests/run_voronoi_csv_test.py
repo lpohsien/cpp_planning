@@ -15,6 +15,7 @@ from voronoi_tests.voronoi_csv_io import (
     read_edges_of_interest_csv,
     read_points_csv,
     read_polygons,
+    write_delaunay_triangles_csv,
     write_graph_edges_csv,
     write_graph_nodes_csv,
 )
@@ -32,7 +33,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--connect-using-centroids", action="store_true", default=True)
     parser.add_argument("--connect-using-midpoints", action="store_true", default=False)
     parser.add_argument("--min-connections", type=int, default=2)
-    parser.add_argument("--min-distance-between-vertices", type=float, default=0.0)
+    parser.add_argument("--min-distance-between-vertices", type=float, default=0.2)
     parser.add_argument("--show", action="store_true")
     return parser.parse_args()
 
@@ -58,22 +59,26 @@ def main() -> None:
 
     vertices = [list(v) for v in graph["vertices"]]
     edges = [list(e) for e in graph["edges"]]
+    delaunay_triangles = [list(t) for t in graph.get("delaunay_triangles", [])]
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     nodes_csv = output_dir / "voronoi_nodes.csv"
     edges_csv = output_dir / "voronoi_edges.csv"
+    triangles_csv = output_dir / "delaunay_triangles.csv"
     image_png = output_dir / "voronoi_overlay.png"
 
     write_graph_nodes_csv(nodes_csv, vertices)
     write_graph_edges_csv(edges_csv, edges)
+    write_delaunay_triangles_csv(triangles_csv, delaunay_triangles)
 
     plot_scene(
         boundaries=boundaries,
         no_go_zones=no_go_zones,
         vertices=vertices,
         edges=edges,
+        delaunay_triangles=delaunay_triangles,
         points_of_interest=poi,
         title="Voronoi Graph From CSV Inputs",
         output_image_path=image_png,
@@ -82,6 +87,7 @@ def main() -> None:
 
     print(f"Wrote graph nodes: {nodes_csv}")
     print(f"Wrote graph edges: {edges_csv}")
+    print(f"Wrote Delaunay triangles: {triangles_csv}")
     print(f"Wrote visualization: {image_png}")
 
 

@@ -85,6 +85,7 @@ Outputs are written to `output/voronoi_h_room/`:
 
 - `voronoi_nodes.csv` with headers `vertex_x,vertex_y,vertex_z`
 - `voronoi_edges.csv` with headers `src_idx,dst_idx`
+- `delaunay_triangles.csv` with headers `v0_x,v0_y,v1_x,v1_y,v2_x,v2_y`
 - `voronoi_overlay.png`
 
 ### Replay visualization from output CSV
@@ -94,5 +95,6 @@ python python/voronoi_tests/visualize_voronoi_from_output_csv.py \
 	--boundary-files input/voronoi_h_room/boundary_h_room.csv \
 	--no-go-files input/voronoi_h_room/no_go_left_square.csv \
 	--nodes-csv output/voronoi_h_room/voronoi_nodes.csv \
-	--edges-csv output/voronoi_h_room/voronoi_edges.csv
+	--edges-csv output/voronoi_h_room/voronoi_edges.csv \
+	--triangles-csv output/voronoi_h_room/delaunay_triangles.csv
 ```

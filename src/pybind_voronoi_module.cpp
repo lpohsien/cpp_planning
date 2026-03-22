@@ -3,6 +3,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "clipper2/clipper.triangulation.h"
+
 #include <stdexcept>
 #include <tuple>
 #include <vector>
@@ -10,6 +12,8 @@
 namespace py = pybind11;
 
 namespace {
+
+constexpr int kClipperPrecision = 6;
 
 Clipper2Lib::PointD tupleToPoint2D(const std::vector<double>& xy)
 {
@@ -68,6 +72,40 @@ std::vector<std::pair<Eigen::Vector3d, std::vector<Eigen::Vector3d>>> parseEdges
     return out;
 }
 
+std::vector<std::array<double, 6>> buildDelaunayTriangles(
+    const Clipper2Lib::PathsD& boundaries,
+    const Clipper2Lib::PathsD& no_go_zones)
+{
+    std::vector<std::array<double, 6>> out;
+
+    Clipper2Lib::PathsD merged_boundaries =
+        Clipper2Lib::Union(boundaries, Clipper2Lib::FillRule::NonZero, kClipperPrecision);
+    Clipper2Lib::PathsD merged_no_go =
+        Clipper2Lib::Union(no_go_zones, Clipper2Lib::FillRule::NonZero, kClipperPrecision);
+
+    Clipper2Lib::PathsD navigable = merged_no_go.empty()
+        ? merged_boundaries
+        : Clipper2Lib::Difference(
+            merged_boundaries,
+            merged_no_go,
+            Clipper2Lib::FillRule::NonZero,
+            kClipperPrecision);
+
+    Clipper2Lib::PathsD triangles;
+    const auto tri_result = Clipper2Lib::Triangulate(navigable, kClipperPrecision, triangles, true);
+    if (tri_result != Clipper2Lib::TriangulateResult::success) {
+        return out;
+    }
+
+    out.reserve(triangles.size());
+    for (const auto& tri : triangles) {
+        if (tri.size() < 3) continue;
+        out.push_back({tri[0].x, tri[0].y, tri[1].x, tri[1].y, tri[2].x, tri[2].y});
+    }
+
+    return out;
+}
+
 py::dict buildVoronoiGraphPy(
     const py::iterable& boundaries,
     const py::iterable& no_go_zones,
@@ -82,6 +120,7 @@ py::dict buildVoronoiGraphPy(
     const Clipper2Lib::PathsD cxx_no_go = parsePolygons(no_go_zones);
     const std::vector<Eigen::Vector3d> cxx_poi = parsePoints3D(points_of_interest);
     const auto cxx_edges = parseEdgesOfInterest(edges_of_interest);
+    const auto delaunay_triangles = buildDelaunayTriangles(cxx_boundaries, cxx_no_go);
 
     VoronoiGraph graph = buildVoronoiGraph(
         cxx_boundaries,
@@ -111,6 +150,7 @@ py::dict buildVoronoiGraphPy(
     py::dict result;
     result["vertices"] = vertices;
     result["edges"] = edges;
+    result["delaunay_triangles"] = delaunay_triangles;
     return result;
 }
 

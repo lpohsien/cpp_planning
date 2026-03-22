@@ -282,9 +282,10 @@ void mergeCloseVertices(
     for (size_t i = 0; i < n; ++i) {
         for (size_t j = i + 1; j < n; ++j) {
             if ((graph.vertices[i] - graph.vertices[j]).squaredNorm() > min_dist2) continue;
-            const auto a = toPointD(graph.vertices[i]);
-            const auto b = toPointD(graph.vertices[j]);
-            if (isSegmentNavigable(a, b, boundaries, no_go)) dsu.unite(i, j);
+            dsu.unite(i, j);
+            // const auto a = toPointD(graph.vertices[i]);
+            // const auto b = toPointD(graph.vertices[j]);
+            // if (isSegmentNavigable(a, b, boundaries, no_go)) dsu.unite(i, j);
         }
     }
 
@@ -367,17 +368,36 @@ VoronoiGraph buildVoronoiGraph(
         Clipper2Lib::PointD center;
         bool center_ok = circumcenter(pts[0], pts[1], pts[2], center) &&
                          isInsideNavigable(center, aBoundaries, aNoGoZones);
+
+        // DEBUG: set center_ok to false to force using centroids for all triangles, to test connectivity.
+        center_ok = false;
+
         if (!center_ok) {
             if (!aConnectUsingCentroids) continue;
             center = Clipper2Lib::PointD(
                 (pts[0].x + pts[1].x + pts[2].x) / 3.0,
                 (pts[0].y + pts[1].y + pts[2].y) / 3.0);
-            if (!isInsideNavigable(center, aBoundaries, aNoGoZones)) continue;
+            // if (!isInsideNavigable(center, aBoundaries, aNoGoZones)) continue;
         }
 
         const size_t center_idx = addVertex(graph, toEigen(center));
         const size_t tri_idx = tri_data.size();
         tri_data.push_back({pts, center_idx});
+
+        std::cout << "Triangle: (" << pts[0].x << "," << pts[0].y << ") - ("
+            << pts[1].x << "," << pts[1].y << ") - ("
+            << pts[2].x << "," << pts[2].y << ") | Center: ("
+            << center.x << "," << center.y << ") | Center OK: " << center_ok
+            << " | Current graph vertices: " << graph.vertices.size()
+            << std::endl;
+
+        if (pts[0].x == 3 && pts[0].y == 9 && pts[1].x == 3 && pts[1].y == 7) {
+            std::cout << "Debug breakpoint: Found triangle (3,9) - (3,7) - (4,9)" << std::endl;
+            std::cout << "Debug breakpoint: center is (" << center.x << "," << center.y << ")" << std::endl;
+            std::cout << "Debug breakpoint: center is in navigable: " << isInsideNavigable(center, aBoundaries, aNoGoZones) << std::endl;
+            std::cout << "Debug breakpoint: center is in boundaries: " << isInsideAny(center, aBoundaries) << std::endl;
+            std::cout << "Debug breakpoint: center is in no-go zones: " << isInsideAny(center, aNoGoZones) << std::endl;
+        }
 
         for (size_t e = 0; e < 3; ++e) {
             const auto& a = pts[e];
@@ -413,29 +433,24 @@ VoronoiGraph buildVoronoiGraph(
 
     const size_t connect_count = std::max<size_t>(aMinConnections, 1);
 
+    // Force add points of interest as vertices
     for (const auto& poi : aPointsOfInterest) {
-        const auto p = toPointD(poi);
-        if (!isInsideNavigable(p, aBoundaries, aNoGoZones)) continue;
+        // if (!isInsideNavigable(p, aBoundaries, aNoGoZones)) continue;
         const size_t idx = addVertex(graph, poi);
         connectToNearestVisible(graph, idx, connect_count, aBoundaries, aNoGoZones);
     }
 
+    // Force adding edges of interest, even if they are not navigable, to ensure connectivity of important points.
     for (const auto& edge_group : aEdgesOfInterest) {
-        const auto anchor_p = toPointD(edge_group.first);
-        if (!isInsideNavigable(anchor_p, aBoundaries, aNoGoZones)) continue;
 
         const size_t anchor_idx = addVertex(graph, edge_group.first);
         connectToNearestVisible(graph, anchor_idx, connect_count, aBoundaries, aNoGoZones);
 
         for (const auto& endpoint : edge_group.second) {
-            const auto end_p = toPointD(endpoint);
-            if (!isInsideNavigable(end_p, aBoundaries, aNoGoZones)) continue;
 
             const size_t end_idx = addVertex(graph, endpoint);
             connectToNearestVisible(graph, end_idx, connect_count, aBoundaries, aNoGoZones);
-            if (isSegmentNavigable(anchor_p, end_p, aBoundaries, aNoGoZones)) {
-                addUndirectedEdge(graph, anchor_idx, end_idx);
-            }
+            addUndirectedEdge(graph, anchor_idx, end_idx);
         }
     }
 
