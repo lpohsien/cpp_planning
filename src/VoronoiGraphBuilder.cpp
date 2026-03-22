@@ -95,7 +95,18 @@ EdgeKey makeEdgeKey(const Clipper2Lib::PointD& a, const Clipper2Lib::PointD& b)
 
 bool pointInsidePath(const Clipper2Lib::PointD& p, const Clipper2Lib::PathD& poly)
 {
-    const auto res = Clipper2Lib::PointInPolygon(p, poly);
+    // Use the integer PIP path by scaling first; this avoids false IsOn
+    // classifications caused by floating-point truncation in template math.
+    int error_code = 0;
+    const double scale = std::pow(10.0, static_cast<double>(kClipperPrecision));
+    const auto poly64 = Clipper2Lib::ScalePath<int64_t, double>(poly, scale, error_code);
+    if (error_code || poly64.size() < 3) return false;
+
+    const auto p64 = Clipper2Lib::Point64(
+        static_cast<int64_t>(std::llround(p.x * scale)),
+        static_cast<int64_t>(std::llround(p.y * scale)));
+
+    const auto res = Clipper2Lib::PointInPolygon(p64, poly64);
     return res == Clipper2Lib::PointInPolygonResult::IsInside ||
            res == Clipper2Lib::PointInPolygonResult::IsOn;
 }
@@ -333,12 +344,13 @@ VoronoiGraph buildVoronoiGraph(
     Clipper2Lib::PathsD aNoGoZones,
     std::vector<Eigen::Vector3d> aPointsOfInterest,
     std::vector<std::pair<Eigen::Vector3d, std::vector<Eigen::Vector3d>>> aEdgesOfInterest,
-    bool aConnectUsingCentroids,
+    bool aConnectUsingCenter,
     bool aConnectUsingMidpoints,
     size_t aMinConnections,
     double aMinDistanceBetweenVertices)
 {
     VoronoiGraph graph;
+
 
     if (aBoundaries.empty()) return graph;
 
@@ -357,75 +369,100 @@ VoronoiGraph buildVoronoiGraph(
         return graph;
     }
 
+
     std::vector<TriangleData> tri_data;
     tri_data.reserve(triangles.size());
     std::map<EdgeKey, std::vector<size_t>> edge_to_tris;
+    std::map<EdgeKey, size_t> edge_occurences_count;
+    std::map<size_t, std::vector<size_t>> triangle_idx_to_edge_midpoint_idx;
 
-    for (const auto& tri : triangles) {
+    for (size_t tri_idx = 0; tri_idx < triangles.size(); ++tri_idx) {
+
+        const auto& tri = triangles[tri_idx];
         if (tri.size() < 3) continue;
         std::array<Clipper2Lib::PointD, 3> pts{tri[0], tri[1], tri[2]};
 
-        Clipper2Lib::PointD center;
-        bool center_ok = circumcenter(pts[0], pts[1], pts[2], center) &&
-                         isInsideNavigable(center, aBoundaries, aNoGoZones);
+        if (aConnectUsingCenter) {
+            Clipper2Lib::PointD center;
+            bool center_ok = circumcenter(pts[0], pts[1], pts[2], center) &&
+                            isInsideNavigable(center, aBoundaries, aNoGoZones);
 
-        // DEBUG: set center_ok to false to force using centroids for all triangles, to test connectivity.
-        center_ok = false;
+            // DEBUG: set center_ok to false to force using centroids for all triangles, to test connectivity.
+            center_ok = false;
 
-        if (!center_ok) {
-            if (!aConnectUsingCentroids) continue;
-            center = Clipper2Lib::PointD(
-                (pts[0].x + pts[1].x + pts[2].x) / 3.0,
-                (pts[0].y + pts[1].y + pts[2].y) / 3.0);
-            // if (!isInsideNavigable(center, aBoundaries, aNoGoZones)) continue;
+            if (!center_ok) {
+                if (!aConnectUsingCenter) continue;
+                center = Clipper2Lib::PointD(
+                    (pts[0].x + pts[1].x + pts[2].x) / 3.0,
+                    (pts[0].y + pts[1].y + pts[2].y) / 3.0);
+                if (!isInsideNavigable(center, aBoundaries, aNoGoZones)) continue;
+            }
+
+            const size_t center_idx = addVertex(graph, toEigen(center));
+            tri_data.push_back({pts, center_idx});
         }
 
-        const size_t center_idx = addVertex(graph, toEigen(center));
-        const size_t tri_idx = tri_data.size();
-        tri_data.push_back({pts, center_idx});
-
-        std::cout << "Triangle: (" << pts[0].x << "," << pts[0].y << ") - ("
-            << pts[1].x << "," << pts[1].y << ") - ("
-            << pts[2].x << "," << pts[2].y << ") | Center: ("
-            << center.x << "," << center.y << ") | Center OK: " << center_ok
-            << " | Current graph vertices: " << graph.vertices.size()
-            << std::endl;
-
-        if (pts[0].x == 3 && pts[0].y == 9 && pts[1].x == 3 && pts[1].y == 7) {
-            std::cout << "Debug breakpoint: Found triangle (3,9) - (3,7) - (4,9)" << std::endl;
-            std::cout << "Debug breakpoint: center is (" << center.x << "," << center.y << ")" << std::endl;
-            std::cout << "Debug breakpoint: center is in navigable: " << isInsideNavigable(center, aBoundaries, aNoGoZones) << std::endl;
-            std::cout << "Debug breakpoint: center is in boundaries: " << isInsideAny(center, aBoundaries) << std::endl;
-            std::cout << "Debug breakpoint: center is in no-go zones: " << isInsideAny(center, aNoGoZones) << std::endl;
-        }
 
         for (size_t e = 0; e < 3; ++e) {
             const auto& a = pts[e];
             const auto& b = pts[(e + 1) % 3];
-            edge_to_tris[makeEdgeKey(a, b)].push_back(tri_idx);
+            EdgeKey key = makeEdgeKey(a, b);
+
+            edge_to_tris[key].push_back(tri_idx);
 
             if (aConnectUsingMidpoints) {
-                const Clipper2Lib::PointD mid((a.x + b.x) * 0.5, (a.y + b.y) * 0.5);
-                if (!isInsideNavigable(mid, aBoundaries, aNoGoZones)) continue;
-                const size_t mid_idx = addVertex(graph, toEigen(mid));
-                if (isSegmentNavigable(mid, center, aBoundaries, aNoGoZones)) {
-                    addUndirectedEdge(graph, center_idx, mid_idx);
+                
+                if (edge_occurences_count.count(key))
+                {
+                    edge_occurences_count[key]++;
+                    if (edge_occurences_count[key] > 2) {
+                        // This should not happen for a well-formed triangulation, but we check just in case.
+                        std::cout << "Warning: Edge shared by more than 2 triangles, invalid triangulation or precision issue." << std::endl;
+                        std::cout << "Edge: (" << a.x << ", " << a.y << ") - (" << b.x << ", " << b.y << ")" << std::endl;
+                    }
+                    
+                    const Clipper2Lib::PointD mid((a.x + b.x) * 0.5, (a.y + b.y) * 0.5);
+                    if (!isInsideNavigable(mid, aBoundaries, aNoGoZones)) continue;
+                    size_t mid_idx = addVertex(graph, toEigen(mid));
+
+                    for (const auto& owner_tri_idx : edge_to_tris[key]) {
+                        triangle_idx_to_edge_midpoint_idx[owner_tri_idx].push_back(mid_idx);
+                    }
+
+                }
+                else
+                {
+                    edge_occurences_count[key] = 1;
                 }
             }
         }
     }
 
-    for (const auto& [edge_key, owners] : edge_to_tris) {
-        (void)edge_key;
-        if (owners.size() < 2) continue;
-        for (size_t i = 0; i < owners.size(); ++i) {
-            for (size_t j = i + 1; j < owners.size(); ++j) {
-                const size_t a = tri_data[owners[i]].center_idx;
-                const size_t b = tri_data[owners[j]].center_idx;
-                const auto pa = toPointD(graph.vertices[a]);
-                const auto pb = toPointD(graph.vertices[b]);
-                if (isSegmentNavigable(pa, pb, aBoundaries, aNoGoZones)) {
-                    addUndirectedEdge(graph, a, b);
+    if (aConnectUsingMidpoints) {
+        for (const auto& tri_idx_pair: triangle_idx_to_edge_midpoint_idx) {
+            // Join the triangle edges midpoints to each other if they are navigable, to improve connectivity for narrow passages.
+            const size_t num_midpoints = tri_idx_pair.second.size();
+            for (size_t e = 0; e < num_midpoints; ++e) {
+                size_t mid_a_idx = tri_idx_pair.second[e];
+                size_t mid_b_idx = tri_idx_pair.second[(e + 1) % num_midpoints];
+                addUndirectedEdge(graph, mid_a_idx, mid_b_idx);
+            }
+        }
+    }
+
+    if (aConnectUsingCenter) {
+        for (const auto& [edge_key, owners] : edge_to_tris) {
+            (void)edge_key;
+            if (owners.size() < 2) continue;
+            for (size_t i = 0; i < owners.size(); ++i) {
+                for (size_t j = i + 1; j < owners.size(); ++j) {
+                    const size_t a = tri_data[owners[i]].center_idx;
+                    const size_t b = tri_data[owners[j]].center_idx;
+                    const auto pa = toPointD(graph.vertices[a]);
+                    const auto pb = toPointD(graph.vertices[b]);
+                    if (isSegmentNavigable(pa, pb, aBoundaries, aNoGoZones)) {
+                        addUndirectedEdge(graph, a, b);
+                    }
                 }
             }
         }

@@ -19,7 +19,7 @@ VoronoiGraph buildVoronoiGraph(
     Clipper2Lib::PathsD aNoGoZones,
     std::vector<Eigen::Vector3d> aPointsOfInterest,
     std::vector<std::pair<Eigen::Vector3d, std::vector<Eigen::Vector3d>>> aEdgesOfInterest,
-    bool aConnectUsingCentroids = true,
+    bool aConnectUsingCenter = true,
     bool aConnectUsingMidpoints = false,
     size_t aMinConnections = 2,
     double aMinDistanceBetweenVertices = 0.0);

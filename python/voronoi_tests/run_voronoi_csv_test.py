@@ -30,8 +30,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--poi-file", required=True)
     parser.add_argument("--edges-file", required=True)
     parser.add_argument("--output-dir", default=str(REPO_ROOT / "output" / "voronoi_h_room"))
-    parser.add_argument("--connect-using-centroids", action="store_true", default=True)
-    parser.add_argument("--connect-using-midpoints", action="store_true", default=False)
+    parser.add_argument("--connect-using-center", action="store_true", default=False)
+    parser.add_argument("--connect-using-midpoints", action="store_true", default=True)
     parser.add_argument("--min-connections", type=int, default=2)
     parser.add_argument("--min-distance-between-vertices", type=float, default=0.2)
     parser.add_argument("--show", action="store_true")
@@ -51,7 +51,7 @@ def main() -> None:
         no_go_zones=no_go_zones,
         points_of_interest=poi,
         edges_of_interest=edges_of_interest,
-        connect_using_centroids=args.connect_using_centroids,
+        connect_using_center=args.connect_using_center,
         connect_using_midpoints=args.connect_using_midpoints,
         min_connections=args.min_connections,
         min_distance_between_vertices=args.min_distance_between_vertices,

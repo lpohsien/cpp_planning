@@ -111,7 +111,7 @@ py::dict buildVoronoiGraphPy(
     const py::iterable& no_go_zones,
     const py::iterable& points_of_interest,
     const py::iterable& edges_of_interest,
-    bool connect_using_centroids,
+    bool connect_using_center,
     bool connect_using_midpoints,
     size_t min_connections,
     double min_distance_between_vertices)
@@ -127,7 +127,7 @@ py::dict buildVoronoiGraphPy(
         cxx_no_go,
         cxx_poi,
         cxx_edges,
-        connect_using_centroids,
+        connect_using_center,
         connect_using_midpoints,
         min_connections,
         min_distance_between_vertices);
@@ -167,7 +167,7 @@ PYBIND11_MODULE(map_engine_voronoi, m)
         py::arg("no_go_zones"),
         py::arg("points_of_interest"),
         py::arg("edges_of_interest"),
-        py::arg("connect_using_centroids") = true,
+        py::arg("connect_using_center") = true,
         py::arg("connect_using_midpoints") = false,
         py::arg("min_connections") = 2,
         py::arg("min_distance_between_vertices") = 0.0);
