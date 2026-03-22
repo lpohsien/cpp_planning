@@ -13,11 +13,7 @@
 #include "clipper2/clipper.h"
 #include "clipper2/clipper.triangulation.h"
 
-struct VoronoiGraph
-{
-    std::vector<Eigen::Vector3d> vertices;
-    std::vector<std::map<size_t, std::vector<size_t>>> tdjacencyList;
-};
+#include "VoronoiGraphBuilder.hpp"
 
 namespace {
 
